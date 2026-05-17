@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>5×5 タイルエディタ＋アニメーションプレビュー</title>
+  <style>
+    body { font-family: sans-serif; margin: 16px; }
+    #main { display: flex; gap: 24px; flex-wrap: wrap; }
+    canvas { border: 1px solid #444; image-rendering: pixelated; }
+    .panel { margin-bottom: 12px; }
+    .tile-buttons { display: flex; flex-wrap: wrap; gap: 4px; max-width: 260px; }
+    .tile-buttons button { width: 40px; height: 40px; padding: 0; border: 1px solid #aaa; background: #eee; cursor: pointer; }
+    .tile-buttons img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+    .artwork-buttons button { margin-right: 4px; }
+    .active-artwork { background: #0078d4; color: white; }
+  </style>
+</head>
+<body>
+  <h1>5×5 タイルエディタ ＋ アニメーションプレビュー</h1>
+
+  <div class="panel">
+    <div><strong>作品：</strong> 0: 歩く / 1: 走る / 2: 跳ぶ</div>
+    <div><strong>操作：</strong> キャンバスをクリックしてタイル配置 ／ <kbd>R</kbd> キーで回転 ／ PNG / PDF 保存</div>
+  </div>
+
+  <div id="main">
+    <!-- 左：エディタ -->
+    <div>
+      <div class="panel artwork-buttons">
+        <button id="art0Btn" onclick="setArtwork(0)">歩く</button>
+        <button id="art1Btn" onclick="setArtwork(1)">走る</button>
+        <button id="art2Btn" onclick="setArtwork(2)">跳ぶ</button>
+      </div>
+
+      <canvas id="editorCanvas" width="400" height="400"></canvas>
+
+      <div class="panel">
+        <div><strong>選択中タイル:</strong> <span id="currentTileLabel">tile0.png</span></div>
+        <div><strong>回転:</strong> <span id="rotationLabel">0°</span></div>
+      </div>
+
+      <div class="panel">
+        <strong>タイル選択（tile0～tile29）</strong>
+        <div class="tile-buttons" id="tileButtons"></div>
+      </div>
+
+      <div class="panel">
+        <button onclick="savePNG()">PNG として保存</button>
+        <button onclick="savePDF()">PDF として保存</button>
+      </div>
+    </div>
+
+    <!-- 右：アニメーションプレビュー -->
+    <div>
+      <div class="panel"><strong>アニメーションプレビュー</strong></div>
+      <canvas id="previewCanvas" width="320" height="320"></canvas>
+      <div class="panel" style="margin-top:8px;">
+        <button onclick="togglePreview()" id="previewBtn">▶ プレビュー開始</button>
+        <label style="margin-left:8px;">
+          速度:
+          <input type="range" min="1" max="12" value="4" id="fpsSlider" oninput="changeFPS(this.value)">
+          <span id="fpsLabel">4 fps</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- jsPDF（PDF 出力用） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    const GRID_SIZE = 5;
+    const TILE_COUNT = 30;
+
+    const editorCanvas = document.getElementById('editorCanvas');
+    const editorCtx = editorCanvas.getContext('2d');
+    const previewCanvas = document.getElementById('previewCanvas');
+    const previewCtx = previewCanvas.getContext('2d');
+
+    const cellSize = editorCanvas.width / GRID_SIZE;
+
+    // 3作品（歩く・走る・跳ぶ）
+    const artworks = [
+      createEmptyGrid(),
+      createEmptyGrid(),
+      createEmptyGrid()
+    ];
+
+    let currentArtworkIndex = 0;
+    let currentTileIndex = 0;
+    let currentRotation = 0;
+
+    const tileImages = new Array(TILE_COUNT);
+
+    function createEmptyGrid() {
+      return Array.from({ length: GRID_SIZE }, () =>
+        Array.from({ length: GRID_SIZE }, () => null)
+      );
+    }
+
+    // タイル読み込み
+    function loadTiles() {
+      for (let i = 0; i < TILE_COUNT; i++) {
+        const img = new Image();
+        img.src = `tile${i}.png`; // index.html と同じフォルダ
+        img.onload = () => {
+          drawEditor();
+          drawPreviewFrame(0);
+        };
+        img.onerror = () => {
+          console.error(`tile${i}.png が読み込めません`);
+        };
+        tileImages[i] = img;
+      }
+    }
+
+    // エディタ描画
+    function drawEditor() {
+      editorCtx.clearRect(0, 0, editor
